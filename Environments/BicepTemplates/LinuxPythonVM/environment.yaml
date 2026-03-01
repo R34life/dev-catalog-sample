@@ -2,10 +2,10 @@
 
 name: LinuxPythonVM
 version: 1.0.0
-summary: Linux Python Developer VM
+summary: Linux Python Developer VM (ARM64)
 description: >
-  Deploys a secure Ubuntu 22.04 LTS developer VM with Python 3.12.3 (pyenv),
-  VNet/NSG networking, and Azure Bastion for secure browser-based SSH access.
+  Deploys a secure Ubuntu 22.04 LTS ARM64 developer VM with Python 3.12.3 (pyenv),
+  VNet/NSG networking, and Azure Bastion for secure SSH access.
   No public IP is exposed on the VM.
 runner: Bicep
 templatePath: azuredeploy.bicep
@@ -13,7 +13,7 @@ templatePath: azuredeploy.bicep
 parameters:
   - id: vmName
     name: VM Name
-    description: "Name for the developer VM (e.g. dev-raja)"
+    description: "Letters, numbers and hyphens only — no spaces or special characters (e.g. raja-py)"
     type: string
     required: true
 
@@ -32,13 +32,15 @@ parameters:
 
   - id: vmSize
     name: VM Size
-    description: "Azure VM SKU"
+    description: "ARM64 VM SKU — Standard_B2ps_v2 is a good starting point for dev"
     type: string
-    default: "Standard_D4s_v5"
+    default: "Standard_B2ps_v2"
     allowed:
-      - "Standard_D2s_v5"
-      - "Standard_D4s_v5"
-      - "Standard_D8s_v5"
+      - "Standard_B2pls_v2"
+      - "Standard_B2ps_v2"
+      - "Standard_B4pls_v2"
+      - "Standard_B4ps_v2"
+      - "Standard_B8ps_v2"
     required: false
 
   - id: osDiskSizeGB

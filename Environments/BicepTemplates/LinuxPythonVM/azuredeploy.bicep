@@ -1,8 +1,11 @@
 // ============================================================
 // azuredeploy.bicep — ADE LinuxPythonVM entry point
+// NOTE: Uses ARM64 SKUs — the only ones available on this subscription
 // ============================================================
 
-@description('Name for the developer VM')
+@description('Name for the developer VM — letters, numbers and hyphens only (e.g. raja-py)')
+@minLength(3)
+@maxLength(15)
 param vmName string
 
 @description('Linux admin username')
@@ -12,13 +15,15 @@ param adminUsername string = 'devuser'
 @secure()
 param sshPublicKey string
 
-@description('Azure VM SKU')
+@description('Azure VM SKU — ARM64 based, available on this subscription')
 @allowed([
-  'Standard_D2s_v5'
-  'Standard_D4s_v5'
-  'Standard_D8s_v5'
+  'Standard_B2pls_v2'
+  'Standard_B2ps_v2'
+  'Standard_B4pls_v2'
+  'Standard_B4ps_v2'
+  'Standard_B8ps_v2'
 ])
-param vmSize string = 'Standard_D4s_v5'
+param vmSize string = 'Standard_B2ps_v2'
 
 @description('Azure region')
 param location string = resourceGroup().location
@@ -38,11 +43,11 @@ var bastionPipName = 'pip-bas-${vmName}'
 module network 'modules/network.bicep' = {
   name: 'network-${vmName}'
   params: {
-    location:      location
-    vnetName:      vnetName
-    subnetVmName:  subnetVmName
-    nsgName:       nsgName
-    bastionName:   bastionName
+    location:       location
+    vnetName:       vnetName
+    subnetVmName:   subnetVmName
+    nsgName:        nsgName
+    bastionName:    bastionName
     bastionPipName: bastionPipName
   }
 }

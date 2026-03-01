@@ -1,10 +1,9 @@
 // ============================================================
 // modules/vm.bicep
-// Ubuntu 22.04 LTS VM — SSH key auth, cloud-init via file load
+// Ubuntu 22.04 LTS ARM64 VM — SSH key auth, cloud-init
 //
-// cloud-init is loaded from cloud-init.yml using loadFileAsBase64().
-// This avoids ALL string escaping issues in Bicep.
-// The Python version and admin username are fixed in cloud-init.yml.
+// Uses ARM64 image (arm64) to match Standard_B*p*_v2 SKUs
+// which are the only ones available on this subscription.
 // ============================================================
 
 param location string
@@ -18,9 +17,7 @@ param sshPublicKey string
 param osDiskSizeGB int
 param nicId string
 
-// ── Load cloud-init from file — no escaping needed ───────────
-// loadFileAsBase64() reads cloud-init.yml at compile time and
-// produces the base64 string that customData expects.
+// ── Load cloud-init from file ────────────────────────────────
 var cloudInitBase64 = loadFileAsBase64('../cloud-init.yml')
 
 // ── VM Resource ──────────────────────────────────────────────
@@ -35,7 +32,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
       imageReference: {
         publisher: 'Canonical'
         offer:     '0001-com-ubuntu-server-jammy'
-        sku:       '22_04-lts-gen2'
+        sku:       '22_04-lts-arm64'       // ARM64 image for *p* SKUs
         version:   'latest'
       }
       osDisk: {
