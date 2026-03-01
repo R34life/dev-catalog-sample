@@ -1,0 +1,69 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - git
+  - curl
+  - wget
+  - build-essential
+  - libssl-dev
+  - zlib1g-dev
+  - libbz2-dev
+  - libreadline-dev
+  - libsqlite3-dev
+  - libncursesw5-dev
+  - xz-utils
+  - tk-dev
+  - libxml2-dev
+  - libxmlsec1-dev
+  - libffi-dev
+  - liblzma-dev
+  - unzip
+  - jq
+
+runcmd:
+  # Install pyenv
+  - curl https://pyenv.run | bash
+
+  # Add pyenv to /etc/profile.d so all users get it
+  - |
+    cat > /etc/profile.d/pyenv.sh << 'EOF'
+    export PYENV_ROOT="/root/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
+    EOF
+
+  # Install Python and create virtualenv as root (runs during provisioning)
+  - export PYENV_ROOT="/root/.pyenv" && export PATH="$PYENV_ROOT/bin:$PATH" && eval "$(pyenv init -)" && pyenv install 3.12.3
+  - export PYENV_ROOT="/root/.pyenv" && export PATH="$PYENV_ROOT/bin:$PATH" && eval "$(pyenv init -)" && pyenv global 3.12.3
+  - export PYENV_ROOT="/root/.pyenv" && export PATH="$PYENV_ROOT/bin:$PATH" && eval "$(pyenv init -)" && eval "$(pyenv virtualenv-init -)" && pyenv virtualenv 3.12.3 devenv
+  - export PYENV_ROOT="/root/.pyenv" && export PATH="$PYENV_ROOT/bin:$PATH" && eval "$(pyenv init -)" && eval "$(pyenv virtualenv-init -)" && pyenv activate devenv && pip install --upgrade pip setuptools wheel
+  - export PYENV_ROOT="/root/.pyenv" && export PATH="$PYENV_ROOT/bin:$PATH" && eval "$(pyenv init -)" && eval "$(pyenv virtualenv-init -)" && pyenv activate devenv && pip install black ruff pytest ipykernel pre-commit
+
+  # Create workspace
+  - mkdir -p /home/devuser/workspace
+  - chown devuser:devuser /home/devuser/workspace
+
+  # Write validation script
+  - |
+    cat > /home/devuser/workspace/check-env.sh << 'CHECKEOF'
+    #!/bin/bash
+    export PYENV_ROOT="/root/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
+    pyenv activate devenv
+    echo "=== Python Environment Check ==="
+    python --version
+    pip --version
+    pyenv versions
+    echo "=== Installed Dev Tools ==="
+    python -m black --version
+    python -m ruff --version
+    python -m pytest --version
+    echo "=== Done ==="
+    CHECKEOF
+  - chmod +x /home/devuser/workspace/check-env.sh
+  - chown devuser:devuser /home/devuser/workspace/check-env.sh

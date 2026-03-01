@@ -1,6 +1,5 @@
 // ============================================================
-// azuredeploy.bicep — ADE LinuxPythonVM Environment Definition
-// Entry point: orchestrates network + vm modules
+// azuredeploy.bicep — ADE LinuxPythonVM entry point
 // ============================================================
 
 @description('Name for the developer VM')
@@ -21,14 +20,6 @@ param sshPublicKey string
 ])
 param vmSize string = 'Standard_D4s_v5'
 
-@description('Python version to install via pyenv')
-@allowed([
-  '3.11.9'
-  '3.12.3'
-  '3.13.0'
-])
-param pythonVersion string = '3.12.3'
-
 @description('Azure region')
 param location string = resourceGroup().location
 
@@ -36,43 +27,41 @@ param location string = resourceGroup().location
 @allowed([ 64, 128, 256 ])
 param osDiskSizeGB int = 128
 
-// ── Derived names ───────────────────────────────────────────
-var vnetName        = 'vnet-${vmName}'
-var subnetVmName    = 'snet-vm'
-var nsgName         = 'nsg-${vmName}'
-var bastionName     = 'bas-${vmName}'
-var bastionPipName  = 'pip-bas-${vmName}'
-var nicName         = 'nic-${vmName}'
+// ── Derived names ─────────────────────────────────────────────
+var vnetName       = 'vnet-${vmName}'
+var subnetVmName   = 'snet-vm'
+var nsgName        = 'nsg-${vmName}'
+var bastionName    = 'bas-${vmName}'
+var bastionPipName = 'pip-bas-${vmName}'
 
-// ── Networking module ────────────────────────────────────────
+// ── Networking module ─────────────────────────────────────────
 module network 'modules/network.bicep' = {
   name: 'network-${vmName}'
   params: {
-    location: location
-    vnetName: vnetName
-    subnetVmName: subnetVmName
-    nsgName: nsgName
-    bastionName: bastionName
+    location:      location
+    vnetName:      vnetName
+    subnetVmName:  subnetVmName
+    nsgName:       nsgName
+    bastionName:   bastionName
     bastionPipName: bastionPipName
   }
 }
 
-// ── VM module ────────────────────────────────────────────────
+// ── VM module ─────────────────────────────────────────────────
 module vm 'modules/vm.bicep' = {
   name: 'vm-${vmName}'
   params: {
-    location: location
-    vmName: vmName
-    vmSize: vmSize
+    location:      location
+    vmName:        vmName
+    vmSize:        vmSize
     adminUsername: adminUsername
-    sshPublicKey: sshPublicKey
-    pythonVersion: pythonVersion
-    osDiskSizeGB: osDiskSizeGB
-    nicId: network.outputs.vmNicId
+    sshPublicKey:  sshPublicKey
+    osDiskSizeGB:  osDiskSizeGB
+    nicId:         network.outputs.vmNicId
   }
 }
 
-// ── Outputs ──────────────────────────────────────────────────
+// ── Outputs ───────────────────────────────────────────────────
 output vmResourceId     string = vm.outputs.vmResourceId
 output privateIpAddress string = network.outputs.vmPrivateIp
 output bastionName      string = bastionName

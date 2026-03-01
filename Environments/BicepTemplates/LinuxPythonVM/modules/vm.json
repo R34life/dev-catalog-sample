@@ -1,0 +1,122 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "17790156289972688829"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string"
+    },
+    "vmName": {
+      "type": "string"
+    },
+    "vmSize": {
+      "type": "string"
+    },
+    "adminUsername": {
+      "type": "string"
+    },
+    "sshPublicKey": {
+      "type": "securestring"
+    },
+    "osDiskSizeGB": {
+      "type": "int"
+    },
+    "nicId": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "cloudInitBase64": "I2Nsb3VkLWNvbmZpZwpwYWNrYWdlX3VwZGF0ZTogdHJ1ZQpwYWNrYWdlX3VwZ3JhZGU6IHRydWUKCnBhY2thZ2VzOgogIC0gZ2l0CiAgLSBjdXJsCiAgLSB3Z2V0CiAgLSBidWlsZC1lc3NlbnRpYWwKICAtIGxpYnNzbC1kZXYKICAtIHpsaWIxZy1kZXYKICAtIGxpYmJ6Mi1kZXYKICAtIGxpYnJlYWRsaW5lLWRldgogIC0gbGlic3FsaXRlMy1kZXYKICAtIGxpYm5jdXJzZXN3NS1kZXYKICAtIHh6LXV0aWxzCiAgLSB0ay1kZXYKICAtIGxpYnhtbDItZGV2CiAgLSBsaWJ4bWxzZWMxLWRldgogIC0gbGliZmZpLWRldgogIC0gbGlibHptYS1kZXYKICAtIHVuemlwCiAgLSBqcQoKcnVuY21kOgogICMgSW5zdGFsbCBweWVudgogIC0gY3VybCBodHRwczovL3B5ZW52LnJ1biB8IGJhc2gKCiAgIyBBZGQgcHllbnYgdG8gL2V0Yy9wcm9maWxlLmQgc28gYWxsIHVzZXJzIGdldCBpdAogIC0gfAogICAgY2F0ID4gL2V0Yy9wcm9maWxlLmQvcHllbnYuc2ggPDwgJ0VPRicKICAgIGV4cG9ydCBQWUVOVl9ST09UPSIvcm9vdC8ucHllbnYiCiAgICBleHBvcnQgUEFUSD0iJFBZRU5WX1JPT1QvYmluOiRQQVRIIgogICAgZXZhbCAiJChweWVudiBpbml0IC0pIgogICAgZXZhbCAiJChweWVudiB2aXJ0dWFsZW52LWluaXQgLSkiCiAgICBFT0YKCiAgIyBJbnN0YWxsIFB5dGhvbiBhbmQgY3JlYXRlIHZpcnR1YWxlbnYgYXMgcm9vdCAocnVucyBkdXJpbmcgcHJvdmlzaW9uaW5nKQogIC0gZXhwb3J0IFBZRU5WX1JPT1Q9Ii9yb290Ly5weWVudiIgJiYgZXhwb3J0IFBBVEg9IiRQWUVOVl9ST09UL2JpbjokUEFUSCIgJiYgZXZhbCAiJChweWVudiBpbml0IC0pIiAmJiBweWVudiBpbnN0YWxsIDMuMTIuMwogIC0gZXhwb3J0IFBZRU5WX1JPT1Q9Ii9yb290Ly5weWVudiIgJiYgZXhwb3J0IFBBVEg9IiRQWUVOVl9ST09UL2JpbjokUEFUSCIgJiYgZXZhbCAiJChweWVudiBpbml0IC0pIiAmJiBweWVudiBnbG9iYWwgMy4xMi4zCiAgLSBleHBvcnQgUFlFTlZfUk9PVD0iL3Jvb3QvLnB5ZW52IiAmJiBleHBvcnQgUEFUSD0iJFBZRU5WX1JPT1QvYmluOiRQQVRIIiAmJiBldmFsICIkKHB5ZW52IGluaXQgLSkiICYmIGV2YWwgIiQocHllbnYgdmlydHVhbGVudi1pbml0IC0pIiAmJiBweWVudiB2aXJ0dWFsZW52IDMuMTIuMyBkZXZlbnYKICAtIGV4cG9ydCBQWUVOVl9ST09UPSIvcm9vdC8ucHllbnYiICYmIGV4cG9ydCBQQVRIPSIkUFlFTlZfUk9PVC9iaW46JFBBVEgiICYmIGV2YWwgIiQocHllbnYgaW5pdCAtKSIgJiYgZXZhbCAiJChweWVudiB2aXJ0dWFsZW52LWluaXQgLSkiICYmIHB5ZW52IGFjdGl2YXRlIGRldmVudiAmJiBwaXAgaW5zdGFsbCAtLXVwZ3JhZGUgcGlwIHNldHVwdG9vbHMgd2hlZWwKICAtIGV4cG9ydCBQWUVOVl9ST09UPSIvcm9vdC8ucHllbnYiICYmIGV4cG9ydCBQQVRIPSIkUFlFTlZfUk9PVC9iaW46JFBBVEgiICYmIGV2YWwgIiQocHllbnYgaW5pdCAtKSIgJiYgZXZhbCAiJChweWVudiB2aXJ0dWFsZW52LWluaXQgLSkiICYmIHB5ZW52IGFjdGl2YXRlIGRldmVudiAmJiBwaXAgaW5zdGFsbCBibGFjayBydWZmIHB5dGVzdCBpcHlrZXJuZWwgcHJlLWNvbW1pdAoKICAjIENyZWF0ZSB3b3Jrc3BhY2UKICAtIG1rZGlyIC1wIC9ob21lL2RldnVzZXIvd29ya3NwYWNlCiAgLSBjaG93biBkZXZ1c2VyOmRldnVzZXIgL2hvbWUvZGV2dXNlci93b3Jrc3BhY2UKCiAgIyBXcml0ZSB2YWxpZGF0aW9uIHNjcmlwdAogIC0gfAogICAgY2F0ID4gL2hvbWUvZGV2dXNlci93b3Jrc3BhY2UvY2hlY2stZW52LnNoIDw8ICdDSEVDS0VPRicKICAgICMhL2Jpbi9iYXNoCiAgICBleHBvcnQgUFlFTlZfUk9PVD0iL3Jvb3QvLnB5ZW52IgogICAgZXhwb3J0IFBBVEg9IiRQWUVOVl9ST09UL2JpbjokUEFUSCIKICAgIGV2YWwgIiQocHllbnYgaW5pdCAtKSIKICAgIGV2YWwgIiQocHllbnYgdmlydHVhbGVudi1pbml0IC0pIgogICAgcHllbnYgYWN0aXZhdGUgZGV2ZW52CiAgICBlY2hvICI9PT0gUHl0aG9uIEVudmlyb25tZW50IENoZWNrID09PSIKICAgIHB5dGhvbiAtLXZlcnNpb24KICAgIHBpcCAtLXZlcnNpb24KICAgIHB5ZW52IHZlcnNpb25zCiAgICBlY2hvICI9PT0gSW5zdGFsbGVkIERldiBUb29scyA9PT0iCiAgICBweXRob24gLW0gYmxhY2sgLS12ZXJzaW9uCiAgICBweXRob24gLW0gcnVmZiAtLXZlcnNpb24KICAgIHB5dGhvbiAtbSBweXRlc3QgLS12ZXJzaW9uCiAgICBlY2hvICI9PT0gRG9uZSA9PT0iCiAgICBDSEVDS0VPRgogIC0gY2htb2QgK3ggL2hvbWUvZGV2dXNlci93b3Jrc3BhY2UvY2hlY2stZW52LnNoCiAgLSBjaG93biBkZXZ1c2VyOmRldnVzZXIgL2hvbWUvZGV2dXNlci93b3Jrc3BhY2UvY2hlY2stZW52LnNoCg=="
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2023-09-01",
+      "name": "[parameters('vmName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "Canonical",
+            "offer": "0001-com-ubuntu-server-jammy",
+            "sku": "22_04-lts-gen2",
+            "version": "latest"
+          },
+          "osDisk": {
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "Premium_LRS"
+            },
+            "diskSizeGB": "[parameters('osDiskSizeGB')]"
+          }
+        },
+        "osProfile": {
+          "computerName": "[parameters('vmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "customData": "[variables('cloudInitBase64')]",
+          "linuxConfiguration": {
+            "disablePasswordAuthentication": true,
+            "ssh": {
+              "publicKeys": [
+                {
+                  "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]",
+                  "keyData": "[parameters('sshPublicKey')]"
+                }
+              ]
+            }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[parameters('nicId')]",
+              "properties": {
+                "primary": true
+              }
+            }
+          ]
+        },
+        "diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": true
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "apiVersion": "2023-09-01",
+      "name": "[format('{0}/{1}', parameters('vmName'), 'AzureMonitorLinuxAgent')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "publisher": "Microsoft.Azure.Monitor",
+        "type": "AzureMonitorLinuxAgent",
+        "typeHandlerVersion": "1.0",
+        "autoUpgradeMinorVersion": true,
+        "enableAutomaticUpgrade": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "vmResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+    },
+    "vmName": {
+      "type": "string",
+      "value": "[parameters('vmName')]"
+    }
+  }
+}
