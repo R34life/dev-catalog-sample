@@ -16,79 +16,75 @@ param osDiskSizeGB int
 param nicId string
 
 // ── Cloud-Init script ────────────────────────────────────────
-// Installs: pyenv, target Python version, virtualenv, dev tools
-// Passed as base64-encoded customData to the VM
-var cloudInitScript = '''
-#cloud-config
-package_update: true
-package_upgrade: true
+// Built using Bicep string interpolation (NOT ''' raw literals)
+// so that adminUsername and pythonVersion are substituted correctly.
+//
+// The script is split into logical sections and joined — this avoids
+// BCP057/BCP062 errors caused by using ${VAR} inside raw string blocks.
 
-packages:
-  - git
-  - curl
-  - wget
-  - build-essential
-  - libssl-dev
-  - zlib1g-dev
-  - libbz2-dev
-  - libreadline-dev
-  - libsqlite3-dev
-  - libncursesw5-dev
-  - xz-utils
-  - tk-dev
-  - libxml2-dev
-  - libxmlsec1-dev
-  - libffi-dev
-  - liblzma-dev
-  - unzip
-  - jq
+var nl = '\n'  // newline shorthand for readability
 
-runcmd:
-  # Install pyenv for the admin user
-  - su - ${ADMIN_USER} -c 'curl https://pyenv.run | bash'
-  # Add pyenv to shell profile
-  - |
-    cat >> /home/${ADMIN_USER}/.bashrc << 'PROFILE'
-    export PYENV_ROOT="$HOME/.pyenv"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    eval "$(pyenv init -)"
-    eval "$(pyenv virtualenv-init -)"
-    PROFILE
-  # Install target Python version
-  - su - ${ADMIN_USER} -c 'source ~/.bashrc && pyenv install ${PYTHON_VERSION}'
-  - su - ${ADMIN_USER} -c 'source ~/.bashrc && pyenv global ${PYTHON_VERSION}'
-  # Create a default virtualenv
-  - su - ${ADMIN_USER} -c 'source ~/.bashrc && pyenv virtualenv ${PYTHON_VERSION} devenv'
-  - su - ${ADMIN_USER} -c 'source ~/.bashrc && pyenv activate devenv && pip install --upgrade pip setuptools wheel'
-  # Install common dev tools into the default virtualenv
-  - su - ${ADMIN_USER} -c 'source ~/.bashrc && pyenv activate devenv && pip install black ruff pytest ipykernel pre-commit'
-  # Set devenv as the default for the user
-  - su - ${ADMIN_USER} -c 'echo "devenv" > /home/${ADMIN_USER}/.python-version'
-  # Create workspace directory
-  - mkdir -p /home/${ADMIN_USER}/workspace
-  - chown ${ADMIN_USER}:${ADMIN_USER} /home/${ADMIN_USER}/workspace
-  # Write a quick validation script
-  - |
-    cat > /home/${ADMIN_USER}/workspace/check-env.sh << 'CHECK'
-    #!/bin/bash
-    source ~/.bashrc
-    echo "=== Python Environment Check ==="
-    python --version
-    pip --version
-    pyenv versions
-    echo "=== Installed Dev Tools ==="
-    python -m black --version
-    python -m ruff --version
-    python -m pytest --version
-    echo "=== Done ==="
-    CHECK
-  - chmod +x /home/${ADMIN_USER}/workspace/check-env.sh
-  - chown ${ADMIN_USER}:${ADMIN_USER} /home/${ADMIN_USER}/workspace/check-env.sh
-'''
+var cloudInitHeader = '#cloud-config${nl}package_update: true${nl}package_upgrade: true${nl}'
 
-// Substitute admin username and python version into cloud-init
-var cloudInitResolved = replace(replace(cloudInitScript, '${ADMIN_USER}', adminUsername), '${PYTHON_VERSION}', pythonVersion)
-var cloudInitBase64   = base64(cloudInitResolved)
+var cloudInitPackages = '${nl}packages:${nl}'
+  + '  - git${nl}'
+  + '  - curl${nl}'
+  + '  - wget${nl}'
+  + '  - build-essential${nl}'
+  + '  - libssl-dev${nl}'
+  + '  - zlib1g-dev${nl}'
+  + '  - libbz2-dev${nl}'
+  + '  - libreadline-dev${nl}'
+  + '  - libsqlite3-dev${nl}'
+  + '  - libncursesw5-dev${nl}'
+  + '  - xz-utils${nl}'
+  + '  - tk-dev${nl}'
+  + '  - libxml2-dev${nl}'
+  + '  - libxmlsec1-dev${nl}'
+  + '  - libffi-dev${nl}'
+  + '  - liblzma-dev${nl}'
+  + '  - unzip${nl}'
+  + '  - jq${nl}'
+
+var cloudInitRuncmd = '${nl}runcmd:${nl}'
+  // Install pyenv
+  + '  - su - ${adminUsername} -c \'curl https://pyenv.run | bash\'${nl}'
+  // Add pyenv to .bashrc
+  + '  - su - ${adminUsername} -c \'echo export PYENV_ROOT=\\\"\\$HOME/.pyenv\\\" >> ~/.bashrc\'${nl}'
+  + '  - su - ${adminUsername} -c \'echo export PATH=\\\"\\$PYENV_ROOT/bin:\\$PATH\\\" >> ~/.bashrc\'${nl}'
+  + '  - su - ${adminUsername} -c \'echo eval \\\"\\$(pyenv init -)\\\" >> ~/.bashrc\'${nl}'
+  + '  - su - ${adminUsername} -c \'echo eval \\\"\\$(pyenv virtualenv-init -)\\\" >> ~/.bashrc\'${nl}'
+  // Install Python version
+  + '  - su - ${adminUsername} -c \'export PYENV_ROOT=\\$HOME/.pyenv && export PATH=\\$PYENV_ROOT/bin:\\$PATH && eval \\\"\\$(pyenv init -)\\\" && pyenv install ${pythonVersion}\'${nl}'
+  + '  - su - ${adminUsername} -c \'export PYENV_ROOT=\\$HOME/.pyenv && export PATH=\\$PYENV_ROOT/bin:\\$PATH && eval \\\"\\$(pyenv init -)\\\" && pyenv global ${pythonVersion}\'${nl}'
+  // Create virtualenv and install dev tools
+  + '  - su - ${adminUsername} -c \'export PYENV_ROOT=\\$HOME/.pyenv && export PATH=\\$PYENV_ROOT/bin:\\$PATH && eval \\\"\\$(pyenv init -)\\\" && eval \\\"\\$(pyenv virtualenv-init -)\\\" && pyenv virtualenv ${pythonVersion} devenv\'${nl}'
+  + '  - su - ${adminUsername} -c \'export PYENV_ROOT=\\$HOME/.pyenv && export PATH=\\$PYENV_ROOT/bin:\\$PATH && eval \\\"\\$(pyenv init -)\\\" && eval \\\"\\$(pyenv virtualenv-init -)\\\" && pyenv activate devenv && pip install --upgrade pip setuptools wheel\'${nl}'
+  + '  - su - ${adminUsername} -c \'export PYENV_ROOT=\\$HOME/.pyenv && export PATH=\\$PYENV_ROOT/bin:\\$PATH && eval \\\"\\$(pyenv init -)\\\" && eval \\\"\\$(pyenv virtualenv-init -)\\\" && pyenv activate devenv && pip install black ruff pytest ipykernel pre-commit\'${nl}'
+  // Set devenv as default and create workspace
+  + '  - su - ${adminUsername} -c \'echo devenv > ~/.python-version\'${nl}'
+  + '  - mkdir -p /home/${adminUsername}/workspace${nl}'
+  + '  - chown ${adminUsername}:${adminUsername} /home/${adminUsername}/workspace${nl}'
+  // Write validation script
+  + '  - |${nl}'
+  + '    cat > /home/${adminUsername}/workspace/check-env.sh << \'CHECKEOF\'${nl}'
+  + '    #!/bin/bash${nl}'
+  + '    source ~/.bashrc${nl}'
+  + '    echo "=== Python Environment Check ==="${nl}'
+  + '    python --version${nl}'
+  + '    pip --version${nl}'
+  + '    pyenv versions${nl}'
+  + '    echo "=== Installed Dev Tools ==="${nl}'
+  + '    python -m black --version${nl}'
+  + '    python -m ruff --version${nl}'
+  + '    python -m pytest --version${nl}'
+  + '    echo "=== Done ==="${nl}'
+  + '    CHECKEOF${nl}'
+  + '  - chmod +x /home/${adminUsername}/workspace/check-env.sh${nl}'
+  + '  - chown ${adminUsername}:${adminUsername} /home/${adminUsername}/workspace/check-env.sh${nl}'
+
+var cloudInitFull   = '${cloudInitHeader}${cloudInitPackages}${cloudInitRuncmd}'
+var cloudInitBase64 = base64(cloudInitFull)
 
 // ── VM Resource ──────────────────────────────────────────────
 resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
@@ -142,13 +138,13 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
     diagnosticsProfile: {
       bootDiagnostics: {
         enabled: true
-        // No storageUri = managed boot diagnostics (recommended)
+        // No storageUri = managed boot diagnostics (free, recommended)
       }
     }
   }
 }
 
-// ── Azure Monitor Agent extension ────────────────────────────
+// ── Azure Monitor Agent ───────────────────────────────────────
 resource amaExtension 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
   parent: vm
   name: 'AzureMonitorLinuxAgent'
@@ -162,6 +158,6 @@ resource amaExtension 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' 
   }
 }
 
-// ── Outputs ──────────────────────────────────────────────────
+// ── Outputs ───────────────────────────────────────────────────
 output vmResourceId string = vm.id
 output vmName       string = vm.name
