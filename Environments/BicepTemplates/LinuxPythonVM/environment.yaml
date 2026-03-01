@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=https://github.com/Azure/deployment-environments/releases/download/2022-11-11-preview/manifest.schema.json
+
+name: LinuxPythonVM
+version: 1.0.0
+summary: Linux Python Developer VM
+description: >
+  Deploys a secure Ubuntu 22.04 LTS developer VM with Python virtualenv,
+  pyenv, VNet/NSG networking, and Azure Bastion for secure access.
+  No public IP is exposed on the VM.
+runner: Bicep
+templatePath: azuredeploy.bicep
+
+parameters:
+  - id: vmName
+    name: VM Name
+    description: "Name for the developer VM (e.g. dev-alice)"
+    type: string
+    required: true
+
+  - id: adminUsername
+    name: Admin Username
+    description: "Linux admin username (no 'admin' or 'root')"
+    type: string
+    default: "devuser"
+    required: true
+
+  - id: sshPublicKey
+    name: SSH Public Key
+    description: "Your SSH public key (contents of ~/.ssh/id_rsa.pub)"
+    type: string
+    required: true
+
+  - id: vmSize
+    name: VM Size
+    description: "Azure VM SKU for the developer machine"
+    type: string
+    default: "Standard_D4s_v5"
+    allowed:
+      - "Standard_D2s_v5"
+      - "Standard_D4s_v5"
+      - "Standard_D8s_v5"
+    required: false
+
+  - id: pythonVersion
+    name: Python Version
+    description: "Python version to install via pyenv"
+    type: string
+    default: "3.12.3"
+    allowed:
+      - "3.11.9"
+      - "3.12.3"
+      - "3.13.0"
+    required: false
+
+  - id: location
+    name: Azure Region
+    description: "Azure region to deploy into"
+    type: string
+    default: "eastus"
+    allowed:
+      - "eastus"
+      - "eastus2"
+      - "westus2"
+      - "westeurope"
+      - "australiaeast"
+    required: false
+
+  - id: osDiskSizeGB
+    name: OS Disk Size (GB)
+    description: "Size of the OS disk in GB"
+    type: integer
+    default: 128
+    allowed:
+      - 64
+      - 128
+      - 256
+    required: false
