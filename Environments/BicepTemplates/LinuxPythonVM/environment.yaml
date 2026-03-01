@@ -22,7 +22,7 @@ parameters:
     description: "Linux admin username (no 'admin' or 'root')"
     type: string
     default: "devuser"
-    required: true
+    required: false
 
   - id: sshPublicKey
     name: SSH Public Key
