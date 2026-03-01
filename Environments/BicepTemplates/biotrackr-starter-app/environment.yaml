@@ -1,0 +1,18 @@
+name: Biotrackr-Starter-App
+summary: This deploys the base infrastructure you need for the Biotrackr Appp
+description: Deploys a Container App Environment, Key Vault, Cosmos DB, App Insights, Managed Identity, App Config, and Container Registry
+templatePath: main.bicep
+parameters:
+- id: "appName"
+  name: "Application Name"
+  description: "The name of this application"
+  type: "string"
+- id: "environment"
+  name: "Environment"
+  description: "The environment to deploy this application to (DEV, UAT, PROD)"
+  type: "string"
+- id: "location"
+  name: "location"
+  description: "Location to deploy the environment resources. If not specified, will deploy to the region of the project"
+  type: "string"
+runner: Bicep 
