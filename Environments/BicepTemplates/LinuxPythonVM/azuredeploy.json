@@ -1,0 +1,499 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "5780797234587395633"
+    }
+  },
+  "parameters": {
+    "vmName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 15,
+      "metadata": {
+        "description": "Name for the developer VM — letters, numbers and hyphens only (e.g. raja-py)"
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "devuser",
+      "metadata": {
+        "description": "Linux admin username"
+      }
+    },
+    "sshPublicKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "SSH public key for the admin user"
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D2s_v3",
+      "allowedValues": [
+        "Standard_D2s_v3",
+        "Standard_D4s_v3"
+      ],
+      "metadata": {
+        "description": "Azure VM SKU — Standard_D2s_v3 recommended (2 vCPU, 8GB RAM)"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region"
+      }
+    },
+    "osDiskSizeGB": {
+      "type": "int",
+      "defaultValue": 128,
+      "allowedValues": [
+        64,
+        128,
+        256
+      ],
+      "metadata": {
+        "description": "OS disk size in GB"
+      }
+    }
+  },
+  "variables": {
+    "vnetName": "[format('vnet-{0}', parameters('vmName'))]",
+    "subnetVmName": "snet-vm",
+    "nsgName": "[format('nsg-{0}', parameters('vmName'))]",
+    "bastionName": "[format('bas-{0}', parameters('vmName'))]",
+    "bastionPipName": "[format('pip-bas-{0}', parameters('vmName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('network-{0}', parameters('vmName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "vnetName": {
+            "value": "[variables('vnetName')]"
+          },
+          "subnetVmName": {
+            "value": "[variables('subnetVmName')]"
+          },
+          "nsgName": {
+            "value": "[variables('nsgName')]"
+          },
+          "bastionName": {
+            "value": "[variables('bastionName')]"
+          },
+          "bastionPipName": {
+            "value": "[variables('bastionPipName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "12506305347547558477"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "vnetName": {
+              "type": "string"
+            },
+            "subnetVmName": {
+              "type": "string"
+            },
+            "nsgName": {
+              "type": "string"
+            },
+            "bastionName": {
+              "type": "string"
+            },
+            "bastionPipName": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "vnetAddressPrefix": "10.0.0.0/16",
+            "subnetBastionPrefix": "10.0.0.0/26",
+            "subnetVmPrefix": "10.0.1.0/24"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2023-09-01",
+              "name": "[parameters('nsgName')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "Allow-SSH-From-Bastion",
+                    "properties": {
+                      "priority": 100,
+                      "protocol": "Tcp",
+                      "access": "Allow",
+                      "direction": "Inbound",
+                      "sourceAddressPrefix": "[variables('subnetBastionPrefix')]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRange": "22"
+                    }
+                  },
+                  {
+                    "name": "Deny-All-Inbound",
+                    "properties": {
+                      "priority": 4096,
+                      "protocol": "*",
+                      "access": "Deny",
+                      "direction": "Inbound",
+                      "sourceAddressPrefix": "*",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRange": "*"
+                    }
+                  },
+                  {
+                    "name": "Allow-Outbound-HTTPS",
+                    "properties": {
+                      "priority": 100,
+                      "protocol": "Tcp",
+                      "access": "Allow",
+                      "direction": "Outbound",
+                      "sourceAddressPrefix": "*",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "Internet",
+                      "destinationPortRange": "443"
+                    }
+                  },
+                  {
+                    "name": "Allow-Outbound-HTTP",
+                    "properties": {
+                      "priority": 110,
+                      "protocol": "Tcp",
+                      "access": "Allow",
+                      "direction": "Outbound",
+                      "sourceAddressPrefix": "*",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "Internet",
+                      "destinationPortRange": "80"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2023-09-01",
+              "name": "[parameters('vnetName')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "[variables('vnetAddressPrefix')]"
+                  ]
+                },
+                "subnets": [
+                  {
+                    "name": "AzureBastionSubnet",
+                    "properties": {
+                      "addressPrefix": "[variables('subnetBastionPrefix')]"
+                    }
+                  },
+                  {
+                    "name": "[parameters('subnetVmName')]",
+                    "properties": {
+                      "addressPrefix": "[variables('subnetVmPrefix')]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]"
+                      }
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/publicIPAddresses",
+              "apiVersion": "2023-09-01",
+              "name": "[parameters('bastionPipName')]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "Standard",
+                "tier": "Regional"
+              },
+              "properties": {
+                "publicIPAllocationMethod": "Static"
+              }
+            },
+            {
+              "type": "Microsoft.Network/bastionHosts",
+              "apiVersion": "2023-09-01",
+              "name": "[parameters('bastionName')]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "Standard"
+              },
+              "properties": {
+                "enableTunneling": true,
+                "enableIpConnect": true,
+                "disableCopyPaste": false,
+                "ipConfigurations": [
+                  {
+                    "name": "ipconfig",
+                    "properties": {
+                      "privateIPAllocationMethod": "Dynamic",
+                      "subnet": {
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), 'AzureBastionSubnet')]"
+                      },
+                      "publicIPAddress": {
+                        "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('bastionPipName'))]"
+                      }
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', parameters('bastionPipName'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/networkInterfaces",
+              "apiVersion": "2023-09-01",
+              "name": "[format('nic-vm-{0}', parameters('vnetName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "ipConfigurations": [
+                  {
+                    "name": "ipconfig1",
+                    "properties": {
+                      "privateIPAllocationMethod": "Dynamic",
+                      "subnet": {
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetVmName'))]"
+                      }
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "vmNicId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/networkInterfaces', format('nic-vm-{0}', parameters('vnetName')))]"
+            },
+            "vmPrivateIp": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('nic-vm-{0}', parameters('vnetName'))), '2023-09-01').ipConfigurations[0].properties.privateIPAddress]"
+            },
+            "vnetId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]"
+            },
+            "bastionId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/bastionHosts', parameters('bastionName'))]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('vm-{0}', parameters('vmName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "vmName": {
+            "value": "[parameters('vmName')]"
+          },
+          "vmSize": {
+            "value": "[parameters('vmSize')]"
+          },
+          "adminUsername": {
+            "value": "[parameters('adminUsername')]"
+          },
+          "sshPublicKey": {
+            "value": "[parameters('sshPublicKey')]"
+          },
+          "osDiskSizeGB": {
+            "value": "[parameters('osDiskSizeGB')]"
+          },
+          "nicId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', format('network-{0}', parameters('vmName'))), '2025-04-01').outputs.vmNicId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "2229906630001668988"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "vmName": {
+              "type": "string"
+            },
+            "vmSize": {
+              "type": "string"
+            },
+            "adminUsername": {
+              "type": "string"
+            },
+            "sshPublicKey": {
+              "type": "securestring"
+            },
+            "osDiskSizeGB": {
+              "type": "int"
+            },
+            "nicId": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "cloudInitBase64": "I2Nsb3VkLWNvbmZpZwpwYWNrYWdlX3VwZGF0ZTogdHJ1ZQpwYWNrYWdlX3VwZ3JhZGU6IHRydWUKCnBhY2thZ2VzOgogIC0gZ2l0CiAgLSBjdXJsCiAgLSB3Z2V0CiAgLSBidWlsZC1lc3NlbnRpYWwKICAtIGxpYnNzbC1kZXYKICAtIHpsaWIxZy1kZXYKICAtIGxpYmJ6Mi1kZXYKICAtIGxpYnJlYWRsaW5lLWRldgogIC0gbGlic3FsaXRlMy1kZXYKICAtIGxpYm5jdXJzZXN3NS1kZXYKICAtIHh6LXV0aWxzCiAgLSB0ay1kZXYKICAtIGxpYnhtbDItZGV2CiAgLSBsaWJ4bWxzZWMxLWRldgogIC0gbGliZmZpLWRldgogIC0gbGlibHptYS1kZXYKICAtIHVuemlwCiAgLSBqcQoKcnVuY21kOgogICMgSW5zdGFsbCBweWVudiBhcyByb290CiAgLSBjdXJsIGh0dHBzOi8vcHllbnYucnVuIHwgYmFzaAoKICAjIEFkZCBweWVudiB0byBzeXN0ZW0gcHJvZmlsZSBzbyBhbGwgdXNlcnMgZ2V0IGl0IG9uIGxvZ2luCiAgLSB8CiAgICBjYXQgPiAvZXRjL3Byb2ZpbGUuZC9weWVudi5zaCA8PCAnRU9GJwogICAgZXhwb3J0IFBZRU5WX1JPT1Q9Ii9yb290Ly5weWVudiIKICAgIGV4cG9ydCBQQVRIPSIkUFlFTlZfUk9PVC9iaW46JFBBVEgiCiAgICBldmFsICIkKHB5ZW52IGluaXQgLSkiCiAgICBldmFsICIkKHB5ZW52IHZpcnR1YWxlbnYtaW5pdCAtKSIKICAgIEVPRgoKICAjIEluc3RhbGwgUHl0aG9uIDMuMTIuMwogIC0gZXhwb3J0IFBZRU5WX1JPT1Q9Ii9yb290Ly5weWVudiIgJiYgZXhwb3J0IFBBVEg9IiRQWUVOVl9ST09UL2JpbjokUEFUSCIgJiYgZXZhbCAiJChweWVudiBpbml0IC0pIiAmJiBweWVudiBpbnN0YWxsIDMuMTIuMwogIC0gZXhwb3J0IFBZRU5WX1JPT1Q9Ii9yb290Ly5weWVudiIgJiYgZXhwb3J0IFBBVEg9IiRQWUVOVl9ST09UL2JpbjokUEFUSCIgJiYgZXZhbCAiJChweWVudiBpbml0IC0pIiAmJiBweWVudiBnbG9iYWwgMy4xMi4zCgogICMgQ3JlYXRlIGRldmVudiB2aXJ0dWFsZW52IGFuZCBpbnN0YWxsIGRldiB0b29scwogIC0gZXhwb3J0IFBZRU5WX1JPT1Q9Ii9yb290Ly5weWVudiIgJiYgZXhwb3J0IFBBVEg9IiRQWUVOVl9ST09UL2JpbjokUEFUSCIgJiYgZXZhbCAiJChweWVudiBpbml0IC0pIiAmJiBldmFsICIkKHB5ZW52IHZpcnR1YWxlbnYtaW5pdCAtKSIgJiYgcHllbnYgdmlydHVhbGVudiAzLjEyLjMgZGV2ZW52CiAgLSBleHBvcnQgUFlFTlZfUk9PVD0iL3Jvb3QvLnB5ZW52IiAmJiBleHBvcnQgUEFUSD0iJFBZRU5WX1JPT1QvYmluOiRQQVRIIiAmJiBldmFsICIkKHB5ZW52IGluaXQgLSkiICYmIGV2YWwgIiQocHllbnYgdmlydHVhbGVudi1pbml0IC0pIiAmJiBweWVudiBhY3RpdmF0ZSBkZXZlbnYgJiYgcGlwIGluc3RhbGwgLS11cGdyYWRlIHBpcCBzZXR1cHRvb2xzIHdoZWVsCiAgLSBleHBvcnQgUFlFTlZfUk9PVD0iL3Jvb3QvLnB5ZW52IiAmJiBleHBvcnQgUEFUSD0iJFBZRU5WX1JPT1QvYmluOiRQQVRIIiAmJiBldmFsICIkKHB5ZW52IGluaXQgLSkiICYmIGV2YWwgIiQocHllbnYgdmlydHVhbGVudi1pbml0IC0pIiAmJiBweWVudiBhY3RpdmF0ZSBkZXZlbnYgJiYgcGlwIGluc3RhbGwgYmxhY2sgcnVmZiBweXRlc3QgaXB5a2VybmVsIHByZS1jb21taXQKCiAgIyBDcmVhdGUgd29ya3NwYWNlIGZvciB0aGUgYWRtaW4gdXNlcgogIC0gbWtkaXIgLXAgL2hvbWUvZGV2dXNlci93b3Jrc3BhY2UKICAtIGNob3duIGRldnVzZXI6ZGV2dXNlciAvaG9tZS9kZXZ1c2VyL3dvcmtzcGFjZQoKICAjIFdyaXRlIHZhbGlkYXRpb24gc2NyaXB0CiAgLSB8CiAgICBjYXQgPiAvaG9tZS9kZXZ1c2VyL3dvcmtzcGFjZS9jaGVjay1lbnYuc2ggPDwgJ0NIRUNLRU9GJwogICAgIyEvYmluL2Jhc2gKICAgIGV4cG9ydCBQWUVOVl9ST09UPSIvcm9vdC8ucHllbnYiCiAgICBleHBvcnQgUEFUSD0iJFBZRU5WX1JPT1QvYmluOiRQQVRIIgogICAgZXZhbCAiJChweWVudiBpbml0IC0pIgogICAgZXZhbCAiJChweWVudiB2aXJ0dWFsZW52LWluaXQgLSkiCiAgICBweWVudiBhY3RpdmF0ZSBkZXZlbnYKICAgIGVjaG8gIj09PSBQeXRob24gRW52aXJvbm1lbnQgQ2hlY2sgPT09IgogICAgcHl0aG9uIC0tdmVyc2lvbgogICAgcGlwIC0tdmVyc2lvbgogICAgcHllbnYgdmVyc2lvbnMKICAgIGVjaG8gIj09PSBJbnN0YWxsZWQgRGV2IFRvb2xzID09PSIKICAgIHB5dGhvbiAtbSBibGFjayAtLXZlcnNpb24KICAgIHB5dGhvbiAtbSBydWZmIC0tdmVyc2lvbgogICAgcHl0aG9uIC1tIHB5dGVzdCAtLXZlcnNpb24KICAgIGVjaG8gIj09PSBEb25lID09PSIKICAgIENIRUNLRU9GCiAgLSBjaG1vZCAreCAvaG9tZS9kZXZ1c2VyL3dvcmtzcGFjZS9jaGVjay1lbnYuc2gKICAtIGNob3duIGRldnVzZXI6ZGV2dXNlciAvaG9tZS9kZXZ1c2VyL3dvcmtzcGFjZS9jaGVjay1lbnYuc2gK"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Compute/virtualMachines",
+              "apiVersion": "2023-09-01",
+              "name": "[parameters('vmName')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "hardwareProfile": {
+                  "vmSize": "[parameters('vmSize')]"
+                },
+                "storageProfile": {
+                  "imageReference": {
+                    "publisher": "Canonical",
+                    "offer": "0001-com-ubuntu-server-jammy",
+                    "sku": "22_04-lts-gen2",
+                    "version": "latest"
+                  },
+                  "osDisk": {
+                    "createOption": "FromImage",
+                    "managedDisk": {
+                      "storageAccountType": "Premium_LRS"
+                    },
+                    "diskSizeGB": "[parameters('osDiskSizeGB')]"
+                  }
+                },
+                "osProfile": {
+                  "computerName": "[parameters('vmName')]",
+                  "adminUsername": "[parameters('adminUsername')]",
+                  "customData": "[variables('cloudInitBase64')]",
+                  "linuxConfiguration": {
+                    "disablePasswordAuthentication": true,
+                    "ssh": {
+                      "publicKeys": [
+                        {
+                          "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]",
+                          "keyData": "[parameters('sshPublicKey')]"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "networkProfile": {
+                  "networkInterfaces": [
+                    {
+                      "id": "[parameters('nicId')]",
+                      "properties": {
+                        "primary": true
+                      }
+                    }
+                  ]
+                },
+                "diagnosticsProfile": {
+                  "bootDiagnostics": {
+                    "enabled": true
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Compute/virtualMachines/extensions",
+              "apiVersion": "2023-09-01",
+              "name": "[format('{0}/{1}', parameters('vmName'), 'AzureMonitorLinuxAgent')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "publisher": "Microsoft.Azure.Monitor",
+                "type": "AzureMonitorLinuxAgent",
+                "typeHandlerVersion": "1.0",
+                "autoUpgradeMinorVersion": true,
+                "enableAutomaticUpgrade": true
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "vmResourceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+            },
+            "vmName": {
+              "type": "string",
+              "value": "[parameters('vmName')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', format('network-{0}', parameters('vmName')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "vmResourceId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('vm-{0}', parameters('vmName'))), '2025-04-01').outputs.vmResourceId.value]"
+    },
+    "privateIpAddress": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('network-{0}', parameters('vmName'))), '2025-04-01').outputs.vmPrivateIp.value]"
+    },
+    "bastionName": {
+      "type": "string",
+      "value": "[variables('bastionName')]"
+    },
+    "vnetName": {
+      "type": "string",
+      "value": "[variables('vnetName')]"
+    }
+  }
+}

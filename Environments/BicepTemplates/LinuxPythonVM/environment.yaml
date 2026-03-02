@@ -44,7 +44,7 @@ parameters:
     name: OS Disk Size (GB)
     description: "Size of the OS disk"
     type: integer
-    default: 128
+    default: 64
     allowed:
       - 64
       - 128
