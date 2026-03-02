@@ -39,14 +39,3 @@ parameters:
       - "Standard_D2s_v3"
       - "Standard_D4s_v3"
     required: false
-
-  - id: osDiskSizeGB
-    name: OS Disk Size (GB)
-    description: "Size of the OS disk"
-    type: integer
-    default: 64
-    allowed:
-      - 64
-      - 128
-      - 256
-    required: false
