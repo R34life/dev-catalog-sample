@@ -1,9 +1,7 @@
 // ============================================================
 // modules/vm.bicep
-// Ubuntu 22.04 LTS ARM64 VM — SSH key auth, cloud-init
-//
-// Uses ARM64 image (arm64) to match Standard_B*p*_v2 SKUs
-// which are the only ones available on this subscription.
+// Ubuntu 22.04 LTS x64 VM — SSH key auth, cloud-init
+// Image: 22_04-lts-gen2 (x64) for Standard_D*s_v3 SKUs
 // ============================================================
 
 param location string
@@ -17,7 +15,7 @@ param sshPublicKey string
 param osDiskSizeGB int
 param nicId string
 
-// ── Load cloud-init from file ────────────────────────────────
+// ── Cloud-init loaded from file — no string escaping needed ──
 var cloudInitBase64 = loadFileAsBase64('../cloud-init.yml')
 
 // ── VM Resource ──────────────────────────────────────────────
@@ -32,7 +30,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
       imageReference: {
         publisher: 'Canonical'
         offer:     '0001-com-ubuntu-server-jammy'
-        sku:       '22_04-lts-arm64'       // ARM64 image for *p* SKUs
+        sku:       '22_04-lts-gen2'    // x64 — matches Standard_D*s_v3/v4/v5
         version:   'latest'
       }
       osDisk: {

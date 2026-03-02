@@ -1,11 +1,7 @@
 // ============================================================
 // modules/network.bicep
-// VNet, Subnets, NSG, Azure Bastion, VM NIC
-//
-// Fixed:
-//   - AzureBastionSubnet bumped to /26 (Standard SKU minimum)
-//   - NSG only on VM subnet, NOT on Bastion subnet
-//   - Bastion dependsOn vnet made explicit to avoid race condition
+// VNet, NSG, Azure Bastion Standard, VM NIC
+// Fixed: AzureBastionSubnet /26, explicit dependsOn, resourceId refs
 // ============================================================
 
 param location string
@@ -17,18 +13,15 @@ param bastionPipName string
 
 // ── Address spaces ───────────────────────────────────────────
 var vnetAddressPrefix   = '10.0.0.0/16'
-var subnetBastionPrefix = '10.0.0.0/26'   // /26 = 64 addresses, required for Standard SKU
-var subnetVmPrefix      = '10.0.1.0/24'   // VM subnet, separate range
+var subnetBastionPrefix = '10.0.0.0/26'   // /26 required for Bastion Standard SKU
+var subnetVmPrefix      = '10.0.1.0/24'
 
 // ── NSG (VM subnet only) ─────────────────────────────────────
-// Do NOT attach this NSG to AzureBastionSubnet.
-// Bastion manages its own subnet rules implicitly.
 resource nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
   name: nsgName
   location: location
   properties: {
     securityRules: [
-      // Allow SSH inbound from Bastion subnet only
       {
         name: 'Allow-SSH-From-Bastion'
         properties: {
@@ -42,7 +35,6 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
           destinationPortRange:     '22'
         }
       }
-      // Deny all other inbound
       {
         name: 'Deny-All-Inbound'
         properties: {
@@ -56,7 +48,6 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
           destinationPortRange:     '*'
         }
       }
-      // Allow outbound HTTPS (pip, apt, pyenv)
       {
         name: 'Allow-Outbound-HTTPS'
         properties: {
@@ -70,7 +61,6 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
           destinationPortRange:     '443'
         }
       }
-      // Allow outbound HTTP (apt mirrors)
       {
         name: 'Allow-Outbound-HTTP'
         properties: {
@@ -97,14 +87,13 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
       addressPrefixes: [ vnetAddressPrefix ]
     }
     subnets: [
-      // AzureBastionSubnet — exact name required by Azure, no NSG
       {
-        name: 'AzureBastionSubnet'
+        name: 'AzureBastionSubnet'   // exact name required by Azure
         properties: {
           addressPrefix: subnetBastionPrefix
+          // No NSG on Bastion subnet — Bastion manages its own rules
         }
       }
-      // VM subnet — NSG attached here only
       {
         name: subnetVmName
         properties: {
@@ -131,10 +120,7 @@ resource bastionPip 'Microsoft.Network/publicIPAddresses@2023-09-01' = {
   }
 }
 
-// ── Azure Bastion Standard SKU ───────────────────────────────
-// Standard SKU required for enableTunneling (native SSH from terminal)
-// dependsOn vnet is implicit via subnet reference, but listed explicitly
-// to prevent the race condition where Bastion provisions before subnets settle
+// ── Azure Bastion Standard ───────────────────────────────────
 resource bastion 'Microsoft.Network/bastionHosts@2023-09-01' = {
   name: bastionName
   location: location
@@ -142,10 +128,9 @@ resource bastion 'Microsoft.Network/bastionHosts@2023-09-01' = {
     name: 'Standard'
   }
   properties: {
-    enableTunneling:         true
-    enableIpConnect:         true
-    disableCopyPaste:        false
-    enableShareableLink:     false
+    enableTunneling:     true
+    enableIpConnect:     true
+    disableCopyPaste:    false
     ipConfigurations: [
       {
         name: 'ipconfig'

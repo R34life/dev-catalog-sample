@@ -2,9 +2,9 @@
 
 name: LinuxPythonVM
 version: 1.0.0
-summary: Linux Python Developer VM (ARM64)
+summary: Linux Python Developer VM
 description: >
-  Deploys a secure Ubuntu 22.04 LTS ARM64 developer VM with Python 3.12.3 (pyenv),
+  Deploys a secure Ubuntu 22.04 LTS x64 developer VM with Python 3.12.3 (pyenv),
   VNet/NSG networking, and Azure Bastion for secure SSH access.
   No public IP is exposed on the VM.
 runner: Bicep
@@ -32,15 +32,12 @@ parameters:
 
   - id: vmSize
     name: VM Size
-    description: "ARM64 VM SKU — Standard_B2ps_v2 is a good starting point for dev"
+    description: "Standard_D2s_v3 recommended (2 vCPU, 8GB RAM)"
     type: string
-    default: "Standard_B2ps_v2"
+    default: "Standard_D2s_v3"
     allowed:
-      - "Standard_B2pls_v2"
-      - "Standard_B2ps_v2"
-      - "Standard_B4pls_v2"
-      - "Standard_B4ps_v2"
-      - "Standard_B8ps_v2"
+      - "Standard_D2s_v3"
+      - "Standard_D4s_v3"
     required: false
 
   - id: osDiskSizeGB
