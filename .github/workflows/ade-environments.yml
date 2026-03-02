@@ -1,208 +1,194 @@
-# .github/workflows/ade-environments.yml
-# ============================================================
-# Creates an ADE LinuxPythonVM environment on PR open/sync,
-# deletes it when the PR is closed.
-# Uses OIDC (no secrets to rotate).
-# ============================================================
+# .github/workflows/ade-environment.yml
+#
+# Creates an ADE environment when a PR is opened or updated.
+# Deletes the environment when the PR is closed or merged.
+#
+# Required GitHub Secrets:
+#   AZURE_CLIENT_ID       - Service principal app ID
+#   AZURE_CLIENT_SECRET   - Service principal password
+#   AZURE_TENANT_ID       - Azure tenant ID
+#   AZURE_SUBSCRIPTION_ID - Azure subscription ID
+#   ADE_SSH_PUBLIC_KEY    - SSH public key for the VM
+#
+# Required GitHub Variables:
+#   ADE_DEV_CENTER        - rtdevcenter01
+#   ADE_PROJECT           - RT-HelloWorldProject
+#   ADE_CATALOG           - rt-dev-catalog
+#   ADE_DEFINITION        - LinuxPythonVM
+#   ADE_ENV_TYPE          - Non-Prod
 
-name: ADE — Manage Dev Environments
+name: ADE Environment
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
-    branches:
-      - main
-
-  # Allow manual trigger for testing
-  workflow_dispatch:
-    inputs:
-      action:
-        description: 'ADE action to perform'
-        required: true
-        default: 'create'
-        type: choice
-        options: [create, delete]
-
-permissions:
-  id-token: write       # Required for OIDC
-  contents: read
-  pull-requests: write  # To post comments with env details
 
 env:
-  # ── ADE Configuration ──────────────────────────────────────
-  DEVCENTER_NAME:    ${{ vars.DEVCENTER_NAME }}        # e.g. dc-myteam
-  ADE_PROJECT:       ${{ vars.ADE_PROJECT_NAME }}      # e.g. python-dev-team
-  ADE_CATALOG:       ${{ vars.ADE_CATALOG_NAME }}      # e.g. ade-catalog
-  ADE_DEFINITION:    LinuxPythonVM
-  ADE_ENV_TYPE:      Dev
-
-  # ── Azure Identity (OIDC) ───────────────────────────────────
-  AZURE_CLIENT_ID:       ${{ vars.AZURE_CLIENT_ID }}
-  AZURE_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}
-  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-  # ── Environment naming ──────────────────────────────────────
-  # e.g. "pr-42-dev" — unique per PR
-  ENV_NAME: pr-${{ github.event.pull_request.number }}-dev
+  ENV_NAME: pr-${{ github.event.pull_request.number }}-env
 
 jobs:
-  # ────────────────────────────────────────────────────────────
-  # CREATE or UPDATE environment on PR open/sync
-  # ────────────────────────────────────────────────────────────
+  # ── Create or update environment on PR open/push ──────────────
   create-environment:
     name: Create ADE Environment
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'create'
-      || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    if: github.event.action != 'closed'
+
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Azure Login (OIDC)
+      - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id:       ${{ env.AZURE_CLIENT_ID }}
-          tenant-id:       ${{ env.AZURE_TENANT_ID }}
-          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
 
-      - name: Install ADE CLI extension
-        run: az extension add --name devcenter --upgrade -y
-
-      - name: Validate Bicep template
+      - name: Check if environment already exists
+        id: check
         run: |
-          az bicep build \
-            --file Environments/LinuxPythonVM/azuredeploy.bicep \
-            --outfile /tmp/azuredeploy.json
-          echo "✅ Bicep template compiled successfully"
+          STATE=$(az devcenter dev environment show \
+            --dev-center-name "${{ vars.ADE_DEV_CENTER }}" \
+            --project-name "${{ vars.ADE_PROJECT }}" \
+            --environment-name "${{ env.ENV_NAME }}" \
+            --query provisioningState -o tsv 2>/dev/null || echo "NotFound")
+          echo "state=$STATE" >> $GITHUB_OUTPUT
+          echo "Environment state: $STATE"
 
-      - name: Create or update ADE environment
-        id: ade-deploy
+      - name: Write parameters file
         run: |
-          # Build parameters JSON for the environment
-          PARAMS=$(cat <<EOF
+          cat > /tmp/ade-params.json << EOF
           {
-            "vmName":        "${{ github.actor }}-${{ github.event.pull_request.number }}",
+            "vmName": "pr-${{ github.event.pull_request.number }}-vm",
             "adminUsername": "devuser",
-            "sshPublicKey":  "${{ secrets.DEV_SSH_PUBLIC_KEY }}",
-            "vmSize":        "Standard_D4s_v5",
-            "pythonVersion": "3.12.3",
-            "location":      "eastus"
+            "sshPublicKey": "${{ secrets.ADE_SSH_PUBLIC_KEY }}",
+            "vmSize": "Standard_D2s_v3"
           }
           EOF
-          )
 
-          # Check if environment already exists (update vs create)
-          EXISTING=$(az devcenter dev environment show \
-            --dev-center-name "$DEVCENTER_NAME" \
-            --project-name    "$ADE_PROJECT" \
-            --environment-name "$ENV_NAME" \
-            --query "name" -o tsv 2>/dev/null || echo "")
+      - name: Create environment
+        if: steps.check.outputs.state == 'NotFound'
+        run: |
+          az devcenter dev environment create \
+            --dev-center-name "${{ vars.ADE_DEV_CENTER }}" \
+            --project-name "${{ vars.ADE_PROJECT }}" \
+            --environment-name "${{ env.ENV_NAME }}" \
+            --environment-type "${{ vars.ADE_ENV_TYPE }}" \
+            --catalog-name "${{ vars.ADE_CATALOG }}" \
+            --environment-definition-name "${{ vars.ADE_DEFINITION }}" \
+            --parameters "@/tmp/ade-params.json"
+          echo "✅ Environment ${{ env.ENV_NAME }} created"
 
-          if [ -n "$EXISTING" ]; then
-            echo "🔄 Updating existing environment: $ENV_NAME"
-            az devcenter dev environment update \
-              --dev-center-name  "$DEVCENTER_NAME" \
-              --project-name     "$ADE_PROJECT" \
-              --environment-name "$ENV_NAME" \
-              --parameters       "$PARAMS"
-          else
-            echo "🚀 Creating new environment: $ENV_NAME"
-            az devcenter dev environment create \
-              --dev-center-name         "$DEVCENTER_NAME" \
-              --project-name            "$ADE_PROJECT" \
-              --environment-name        "$ENV_NAME" \
-              --environment-type        "$ADE_ENV_TYPE" \
-              --catalog-name            "$ADE_CATALOG" \
-              --environment-definition-name "$ADE_DEFINITION" \
-              --parameters              "$PARAMS"
-          fi
+      - name: Skip creation (already exists)
+        if: steps.check.outputs.state != 'NotFound'
+        run: echo "⏭️ Environment ${{ env.ENV_NAME }} already exists (state=${{ steps.check.outputs.state }}), skipping creation"
 
-          # Get the resource group that ADE created
+      - name: Get environment details
+        id: details
+        run: |
           RG=$(az devcenter dev environment show \
-            --dev-center-name "$DEVCENTER_NAME" \
-            --project-name    "$ADE_PROJECT" \
-            --environment-name "$ENV_NAME" \
-            --query "resourceGroupId" -o tsv)
+            --dev-center-name "${{ vars.ADE_DEV_CENTER }}" \
+            --project-name "${{ vars.ADE_PROJECT }}" \
+            --environment-name "${{ env.ENV_NAME }}" \
+            --query resourceGroupId -o tsv)
+          RG_NAME=$(basename $RG)
+          echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
 
-          echo "resource_group=$RG" >> $GITHUB_OUTPUT
-          echo "env_name=$ENV_NAME" >> $GITHUB_OUTPUT
+          PRIVATE_IP=$(az network nic show \
+            --resource-group "$RG_NAME" \
+            --name "nic-vm-vnet-pr-${{ github.event.pull_request.number }}-vm" \
+            --query "ipConfigurations[0].privateIPAddress" -o tsv 2>/dev/null || echo "pending")
+          echo "private_ip=$PRIVATE_IP" >> $GITHUB_OUTPUT
 
-      - name: Post environment details to PR
-        if: github.event_name == 'pull_request'
+      - name: Comment on PR
         uses: actions/github-script@v7
         with:
           script: |
-            const rg = '${{ steps.ade-deploy.outputs.resource_group }}';
-            const envName = '${{ steps.ade-deploy.outputs.env_name }}';
-            const portalUrl = `https://portal.azure.com/#@${{ env.AZURE_TENANT_ID }}/resource${rg}`;
-
+            const envName = process.env.ENV_NAME;
+            const rgName = '${{ steps.details.outputs.rg_name }}';
+            const ip = '${{ steps.details.outputs.private_ip }}';
+            const prNum = '${{ github.event.pull_request.number }}';
             const body = [
-              '## 🖥️ ADE Dev Environment Ready',
+              '## 🚀 ADE Dev Environment Ready',
               '',
-              `| Field | Value |`,
-              `|-------|-------|`,
-              `| **Environment** | \`${envName}\` |`,
-              `| **Definition** | LinuxPythonVM |`,
-              `| **Resource Group** | \`${rg}\` |`,
-              `| **Portal Link** | [Open in Azure Portal](${portalUrl}) |`,
+              `**Environment:** \`${envName}\``,
+              `**Resource Group:** \`${rgName}\``,
+              `**VM Private IP:** \`${ip}\``,
               '',
               '### Connect via Bastion',
               '```bash',
               `az network bastion ssh \\`,
-              `  --name bas-${envName} \\`,
-              `  --resource-group ${rg} \\`,
-              `  --target-resource-id <vm-resource-id> \\`,
+              `  --name bas-pr-${prNum}-vm \\`,
+              `  --resource-group ${rgName} \\`,
+              `  --target-resource-id $(az vm show -g ${rgName} -n pr-${prNum}-vm --query id -o tsv) \\`,
               `  --auth-type ssh-key \\`,
               `  --username devuser \\`,
-              `  --ssh-key ~/.ssh/id_rsa`,
+              `  --ssh-key ~/.ssh/id_ed25519`,
               '```',
               '',
-              '_This environment will be automatically deleted when the PR is closed._',
+              '_Environment will be automatically deleted when this PR is closed._',
             ].join('\n');
 
-            await github.rest.issues.createComment({
+            const comments = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body,
             });
+            const existing = comments.data.find(c =>
+              c.user.login === 'github-actions[bot]' &&
+              c.body.includes('ADE Dev Environment Ready')
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
 
-  # ────────────────────────────────────────────────────────────
-  # DELETE environment on PR close
-  # ────────────────────────────────────────────────────────────
+  # ── Delete environment when PR is closed ─────────────────────
   delete-environment:
     name: Delete ADE Environment
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'delete'
-      || (github.event_name == 'pull_request' && github.event.action == 'closed')
+    if: github.event.action == 'closed'
+
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
-      - name: Azure Login (OIDC)
+      - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id:       ${{ env.AZURE_CLIENT_ID }}
-          tenant-id:       ${{ env.AZURE_TENANT_ID }}
-          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
 
-      - name: Install ADE CLI extension
-        run: az extension add --name devcenter --upgrade -y
-
-      - name: Delete ADE environment
+      - name: Delete environment
         run: |
-          echo "🗑️ Deleting environment: $ENV_NAME"
-          az devcenter dev environment delete \
-            --dev-center-name  "$DEVCENTER_NAME" \
-            --project-name     "$ADE_PROJECT" \
-            --environment-name "$ENV_NAME" \
-            --yes \
-          && echo "✅ Environment deleted" \
-          || echo "⚠️ Environment not found or already deleted — skipping"
+          STATE=$(az devcenter dev environment show \
+            --dev-center-name "${{ vars.ADE_DEV_CENTER }}" \
+            --project-name "${{ vars.ADE_PROJECT }}" \
+            --environment-name "${{ env.ENV_NAME }}" \
+            --query provisioningState -o tsv 2>/dev/null || echo "NotFound")
 
-      - name: Post deletion notice to PR
-        if: github.event_name == 'pull_request'
+          if [ "$STATE" == "NotFound" ]; then
+            echo "⏭️ Environment ${{ env.ENV_NAME }} not found, nothing to delete"
+          else
+            az devcenter dev environment delete \
+              --dev-center-name "${{ vars.ADE_DEV_CENTER }}" \
+              --project-name "${{ vars.ADE_PROJECT }}" \
+              --environment-name "${{ env.ENV_NAME }}" \
+              --yes
+            echo "🗑️ Environment ${{ env.ENV_NAME }} deleted"
+          fi
+
+      - name: Comment on PR
         uses: actions/github-script@v7
         with:
           script: |
@@ -210,5 +196,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `🗑️ **ADE environment \`${{ env.ENV_NAME }}\` has been deleted** — PR closed.`,
+              body: '## 🗑️ ADE Environment Deleted\n\n`${{ env.ENV_NAME }}` has been deleted as this PR was closed.',
             });
