@@ -79,6 +79,8 @@ write_files:
       python -m black --version
       python -m ruff --version
       python -m pytest --version
+      echo "=== Hello World ==="
+      python -c "print('Hello, World!')"
       echo "=== Done ==="
 
 runcmd:
